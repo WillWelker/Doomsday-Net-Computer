@@ -1,32 +1,66 @@
 #include <Arduino.h>
-#include <USBHost_t36.h>
+#include <SD.h>
+#include "config.h"
+#include "led_control.h"
+#include "sd_manager.h"
+#include "commands.h"
 
-USBHost myusb;
-KeyboardController keyboard1(myusb);
+File currentDir;
 
-void OnKeyPress(int key) {
-    digitalWrite(13, HIGH);   // onboard LED flash
-    delay(30);
-    digitalWrite(13, LOW);
-
-    Serial.print("Key: ");
-    if (key >= 32 && key <= 126) Serial.print((char)key);
-    else Serial.printf("[0x%02X]", key);
-    Serial.println();
+void printPrompt() {
+    Serial.print("\n> ");
 }
 
 void setup() {
-    pinMode(13, OUTPUT);
+    pinMode(ONBOARD_LED, OUTPUT);
+    pinMode(EXTERNAL_LED, OUTPUT);
+    digitalWrite(ONBOARD_LED, LOW);
+    digitalWrite(EXTERNAL_LED, LOW);
+
     Serial.begin(115200);
-    while (!Serial && millis() < 8000);
+    while (!Serial && millis() < 8000) {}
     delay(200);
 
-    Serial.println("\n=== Doomsday Net Computer - Minimal USB Host Keyboard Test ===");
-    myusb.begin();
-    keyboard1.attachPress(OnKeyPress);
-    Serial.println("USB Host started - plug keyboard into soldered port");
+    Serial.println("\n=== Doomsday Net Computer - Teensy 4.1 Terminal + Lua Scripting ===");
+
+    blinkLED(ONBOARD_LED, 3, 80, 80);
+    blinkLED(EXTERNAL_LED, 3, 80, 80);
+
+    Serial.print("Initializing SD card... ");
+    if (!initSDCard()) {
+        Serial.println("FAILED!");
+        blinkLED(ONBOARD_LED, 6, 60, 60);
+        blinkLED(EXTERNAL_LED, 6, 60, 60);
+    } else {
+        Serial.println("OK");
+        blinkLED(ONBOARD_LED, 2, 300, 200);
+        blinkLED(EXTERNAL_LED, 2, 300, 200);
+
+        ensureDefaultLuaScript();
+
+        currentDir = SD.open("/");
+    }
+
+    Serial.println("Available commands: help, info, uptime, run <script>, reset");
+    printPrompt();
 }
 
 void loop() {
-    myusb.Task();   // MUST run frequently
+    static char cmdBuffer[MAX_CMD];
+    static int cmdIndex = 0;
+
+    while (Serial.available() > 0) {
+        char c = Serial.read();
+        if (c == '\r' || c == '\n') {
+            cmdBuffer[cmdIndex] = '\0';
+            if (cmdIndex > 0) {
+                handleCommand(cmdBuffer);
+            }
+            cmdIndex = 0;
+            printPrompt();
+        }
+        else if (cmdIndex < MAX_CMD - 1) {
+            cmdBuffer[cmdIndex++] = c;
+        }
+    }
 }
