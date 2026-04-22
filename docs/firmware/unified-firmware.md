@@ -46,6 +46,28 @@ This allows:
 - **ILI9341 TFT (320x240)** — Local scrolling terminal display
 - **RP2040-PiZero** (incoming) — Dedicated HDMI/DVI display + USB Host keyboard module
 
+## Third-Party Device Integration
+
+The Doomsday Message Bus is designed to coexist with devices that have their own firmware and UART protocols (e.g. MeshTastic, other LoRa nodes, commercial radios, etc.).
+
+### Recommended Pattern: Dedicated Adapters
+
+- Use a small microcontroller (RP2040 or UNO R4 Minima) as a **protocol bridge**
+- The adapter speaks the foreign device's native protocol on one UART port
+- The adapter speaks native DMB on the other UART port to the central Teensy 4.1
+- This keeps the core system simple and auditable
+
+### Benefits
+- No need to re-flash third-party devices
+- Clear separation of concerns
+- Easy to swap or upgrade adapters
+- Maintains cyberpandemic immunity for the main system
+
+### Examples
+- MeshTastic Adapter: Translates MeshTastic Serial API → DMB topics like `radio.packet`, `radio.send`
+- Future commercial radio adapter
+- GPS module adapter
+
 ## Future Modules
 
 - Multiple UNO R4 Minima nodes (UART daisy-chain)
