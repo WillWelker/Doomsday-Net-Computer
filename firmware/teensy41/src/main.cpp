@@ -1,5 +1,5 @@
 // Doomsday Net Computer - Terminal Engine
-// Version 0.14 - Proper Scrolling + Live Input
+// Version 0.14 - Proper Scrolling + Live Input.
 
 #include <Arduino.h>
 #include <SD.h>
