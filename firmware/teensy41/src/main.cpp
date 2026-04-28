@@ -1,11 +1,11 @@
 // Doomsday Net Computer - Terminal Engine
-// Version 0.10 - First working Lua integration
+// Version 0.14 - Proper Scrolling + Live Input
 
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
 #include <ILI9341_t3.h>
-#include <lua.hpp>
+#include <USBHost_t36.h>
 
 // ==================== PIN DEFINITIONS ====================
 const int SD_CS_PIN   = BUILTIN_SDCARD;
@@ -18,6 +18,13 @@ const int EXTERNAL_LED = 12;
 
 ILI9341_t3 tft = ILI9341_t3(TFT_CS, TFT_DC, TFT_RST);
 
+// ==================== USB HOST ====================
+USBHost myusb;
+USBHub hub1(myusb);
+USBHIDParser hid1(myusb);
+KeyboardController keyboard1(myusb);
+
+// ==================== TERMINAL STATE ====================
 const int MAX_LINES = 15;
 const int LINE_HEIGHT = 16;
 
@@ -27,8 +34,7 @@ struct TerminalLine {
 };
 
 TerminalLine terminalLines[MAX_LINES];
-int currentLine = 0;
-int displayRow = 0;
+int scrollOffset = 0;  // Current scroll position
 
 const int MAX_CMD = 128;
 char cmdBuffer[MAX_CMD];
@@ -36,11 +42,11 @@ int cmdIndex = 0;
 
 String currentPath = "/";
 
-lua_State* L = NULL;
-
 // Forward declarations
 void addToTerminal(const char* text, uint16_t color = ILI9341_GREEN);
 void handleCommand(const char* cmd);
+void OnPress(int key);
+void scrollUp();
 
 void blinkLED(int pin, int times = 1, int onTime = 120, int offTime = 120) {
     for (int i = 0; i < times; i++) {
@@ -51,34 +57,39 @@ void blinkLED(int pin, int times = 1, int onTime = 120, int offTime = 120) {
     }
 }
 
-void redrawScreen() {
+void scrollUp() {
+    for (int i = 0; i < MAX_LINES - 1; i++) {
+        terminalLines[i] = terminalLines[i + 1];
+    }
+    terminalLines[MAX_LINES - 1].text = "";
+    terminalLines[MAX_LINES - 1].color = ILI9341_GREEN;
+    
     tft.fillScreen(ILI9341_BLACK);
-    for (int i = 0; i < MAX_LINES; i++) {
-        int idx = (currentLine + i) % MAX_LINES;
-        if (terminalLines[idx].text.length() > 0) {
+    for (int i = 0; i < MAX_LINES - 1; i++) {
+        if (terminalLines[i].text.length() > 0) {
             tft.setCursor(4, 8 + i * LINE_HEIGHT);
-            tft.setTextColor(terminalLines[idx].color);
+            tft.setTextColor(terminalLines[i].color);
             tft.setTextSize(1);
-            tft.print(terminalLines[idx].text);
+            tft.print(terminalLines[i].text);
         }
     }
 }
 
 void addToTerminal(const char* text, uint16_t color) {
-    terminalLines[currentLine].text = text;
-    terminalLines[currentLine].color = color;
-    currentLine = (currentLine + 1) % MAX_LINES;
-    
-    if (displayRow < MAX_LINES) {
-        tft.setCursor(4, 8 + displayRow * LINE_HEIGHT);
-        tft.setTextColor(color);
-        tft.setTextSize(1);
-        tft.print(text);
-        displayRow++;
-    } else {
-        redrawScreen();
+    if (scrollOffset >= MAX_LINES - 1) {
+        scrollUp();
+        scrollOffset = MAX_LINES - 2;
     }
     
+    terminalLines[scrollOffset].text = text;
+    terminalLines[scrollOffset].color = color;
+    
+    tft.setCursor(4, 8 + scrollOffset * LINE_HEIGHT);
+    tft.setTextColor(color);
+    tft.setTextSize(1);
+    tft.print(text);
+    
+    scrollOffset++;
     Serial.println(text);
 }
 
@@ -87,50 +98,41 @@ void printPrompt() {
     addToTerminal("> ", ILI9341_YELLOW);
 }
 
-// Lua print function binding
-static int lua_print(lua_State* L) {
-    int nargs = lua_gettop(L);
-    for (int i = 1; i <= nargs; i++) {
-        const char* str = lua_tostring(L, i);
-        if (str) {
-            addToTerminal(str, ILI9341_WHITE);
+// USB Keyboard callback - LIVE INPUT WITH PROPER SCROLLING
+void OnPress(int key) {
+    if (key == 10 || key == 13) {  // Enter
+        cmdBuffer[cmdIndex] = '\0';
+        if (cmdIndex > 0) {
+            addToTerminal(cmdBuffer, ILI9341_YELLOW);
+            handleCommand(cmdBuffer);
+        }
+        cmdIndex = 0;
+        tft.fillRect(4, 8 + scrollOffset * LINE_HEIGHT, 312, LINE_HEIGHT, ILI9341_BLACK);
+        printPrompt();
+    }
+    else if (key == 8 || key == 127) {  // Backspace
+        if (cmdIndex > 0) {
+            cmdIndex--;
+            tft.fillRect(4, 8 + scrollOffset * LINE_HEIGHT, 312, LINE_HEIGHT, ILI9341_BLACK);
+            tft.setCursor(4, 8 + scrollOffset * LINE_HEIGHT);
+            tft.setTextColor(ILI9341_YELLOW);
+            tft.setTextSize(1);
+            tft.print("> ");
+            for (int i = 0; i < cmdIndex; i++) {
+                tft.print(cmdBuffer[i]);
+            }
         }
     }
-    return 0;
-}
-
-void initLua() {
-    L = luaL_newstate();
-    luaL_openlibs(L);
-    
-    // Register our custom print function
-    lua_register(L, "print", lua_print);
-    
-    Serial.println("Lua interpreter initialized");
-}
-
-void runLuaScript(const char* filename) {
-    String fullPath = (currentPath == "/" ? "" : currentPath) + "/" + filename;
-    if (currentPath == "/") fullPath = "/" + filename;
-
-    File f = SD.open(fullPath.c_str());
-    if (!f) {
-        addToTerminal(("Lua file not found: " + String(filename)).c_str(), ILI9341_RED);
-        return;
-    }
-
-    String script = "";
-    while (f.available()) {
-        script += (char)f.read();
-    }
-    f.close();
-
-    if (luaL_dostring(L, script.c_str()) != LUA_OK) {
-        const char* err = lua_tostring(L, -1);
-        addToTerminal(("Lua error: " + String(err)).c_str(), ILI9341_RED);
-        lua_pop(L, 1);
-    } else {
-        addToTerminal(("Lua script executed: " + String(filename)).c_str(), ILI9341_GREEN);
+    else if (cmdIndex < MAX_CMD - 1 && key >= 32 && key <= 126) {
+        cmdBuffer[cmdIndex++] = (char)key;
+        tft.fillRect(4, 8 + scrollOffset * LINE_HEIGHT, 312, LINE_HEIGHT, ILI9341_BLACK);
+        tft.setCursor(4, 8 + scrollOffset * LINE_HEIGHT);
+        tft.setTextColor(ILI9341_YELLOW);
+        tft.setTextSize(1);
+        tft.print("> ");
+        for (int i = 0; i < cmdIndex; i++) {
+            tft.print(cmdBuffer[i]);
+        }
     }
 }
 
@@ -151,7 +153,7 @@ void setup() {
     tft.fillScreen(ILI9341_BLACK);
 
     addToTerminal("=== Doomsday Net Computer ===", ILI9341_GREEN);
-    addToTerminal("Basic Terminal Engine v0.10", ILI9341_YELLOW);
+    addToTerminal("Terminal Engine v0.14 + USB Host", ILI9341_YELLOW);
     addToTerminal("Type 'help' for commands.", ILI9341_WHITE);
 
     Serial.print("SD card... ");
@@ -165,11 +167,17 @@ void setup() {
         blinkLED(ONBOARD_LED, 2, 300, 200);
     }
 
-    initLua();
+    Serial.println("USB Host initializing...");
+    keyboard1.attachPress(OnPress);
+    myusb.begin();
+    Serial.println("USB Host ready - connect keyboard");
+
     printPrompt();
 }
 
 void loop() {
+    myusb.Task();
+    
     while (Serial.available() > 0) {
         char c = Serial.read();
         if (c == '\r' || c == '\n') {
@@ -192,18 +200,10 @@ void handleCommand(const char* cmd) {
     command.trim();
     command.toLowerCase();
 
-    if (command.startsWith("run ")) {
-        String script = command.substring(4);
-        script.trim();
-        runLuaScript(script.c_str());
-        return;
-    }
-
     if (command == "help") {
         addToTerminal("Available commands:", ILI9341_WHITE);
         addToTerminal("  help             - this help", ILI9341_WHITE);
         addToTerminal("  upload <file>    - upload file over USB (end with EOF)", ILI9341_WHITE);
-        addToTerminal("  run <script>     - run Lua script from SD", ILI9341_WHITE);
         addToTerminal("  ls               - list files", ILI9341_WHITE);
         addToTerminal("  pwd              - print working directory", ILI9341_WHITE);
         addToTerminal("  cd <dir>         - change directory", ILI9341_WHITE);
@@ -317,8 +317,8 @@ void handleCommand(const char* cmd) {
         addToTerminal(buf, ILI9341_WHITE);
     }
     else if (command == "info") {
-        addToTerminal("Teensy 4.1 Basic Terminal Engine v0.10", ILI9341_YELLOW);
-        addToTerminal("320x240 ILI9341 TFT + Lua 5.3", ILI9341_WHITE);
+        addToTerminal("Teensy 4.1 Terminal Engine v0.14", ILI9341_YELLOW);
+        addToTerminal("USB Host Keyboard + SD Card", ILI9341_WHITE);
     }
     else if (command == "reset") {
         addToTerminal("Restarting system...", ILI9341_YELLOW);
