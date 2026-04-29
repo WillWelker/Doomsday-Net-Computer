@@ -1,4 +1,4 @@
-// Doomsday Net Computer - With commands.h
+// Doomsday Net Computer - With DoomsdayMessageBus
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
@@ -7,6 +7,7 @@
 #include "config.h"
 #include "terminal.h"
 #include "commands.h"
+#include <DoomsdayMessageBus.h>
 
 // ==================== GLOBALS ====================
 ILI9341_t3 tft = ILI9341_t3(TFT_CS, TFT_DC, TFT_RST);
@@ -21,6 +22,9 @@ KeyboardController keyboard1(myusb);
 char cmdBuffer[MAX_CMD];
 int cmdIndex = 0;
 String currentPath = "/";
+
+// Doomsday Message Bus instance
+DoomsdayMessageBus doomsdayBus(Serial1);
 
 // ==================== USB KEYBOARD ====================
 void OnPress(int key) {
@@ -76,8 +80,8 @@ void setup() {
     tft.setRotation(1);
     tft.fillScreen(ILI9341_BLACK);
 
-    addToTerminal("=== Doomsday Net Computer v0.20 ===", ILI9341_GREEN);
-    addToTerminal("USB Host Keyboard + SD Card", ILI9341_YELLOW);
+    addToTerminal("=== Doomsday Net Computer v0.21 ===", ILI9341_GREEN);
+    addToTerminal("All libraries loaded: Terminal, Commands, DoomsdayMessageBus", ILI9341_YELLOW);
 
     if (!SD.begin(SD_CS_PIN)) {
         addToTerminal("SD card FAILED", ILI9341_RED);
@@ -88,11 +92,18 @@ void setup() {
     keyboard1.attachPress(OnPress);
     myusb.begin();
 
+    // Initialize Doomsday Message Bus
+    doomsdayBus.begin();
+    doomsdayBus.subscribe("status", [](const char* topic, const char* msg) {
+        addToTerminal(("Doomsday Bus: " + String(msg)).c_str(), ILI9341_CYAN);
+    });
+
     printPrompt();
 }
 
 void loop() {
     myusb.Task();
+    doomsdayBus.update();
     
     while (Serial.available() > 0) {
         char c = Serial.read();

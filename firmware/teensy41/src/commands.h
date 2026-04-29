@@ -17,8 +17,20 @@ void handleCommand(const char* cmd) {
     command.toLowerCase();
 
     if (command == "help") {
-        addToTerminal("Commands: help, status, ls, pwd, cd, cat, echo, mkdir, rm, uptime, info, reset", ILI9341_WHITE);
-    }
+    addToTerminal("Available commands:", ILI9341_WHITE);
+    addToTerminal("  help    - this help", ILI9341_WHITE);
+    addToTerminal("  status  - show system status", ILI9341_WHITE);
+    addToTerminal("  ls      - list files", ILI9341_WHITE);
+    addToTerminal("  pwd     - print working directory", ILI9341_WHITE);
+    addToTerminal("  cd <dir> - change directory", ILI9341_WHITE);
+    addToTerminal("  cat <file> - display file", ILI9341_WHITE);
+    addToTerminal("  echo \"text\" > file - write to file", ILI9341_WHITE);
+    addToTerminal("  mkdir <name> - create directory", ILI9341_WHITE);
+    addToTerminal("  rm <file> - delete file", ILI9341_WHITE);
+    addToTerminal("  uptime  - show uptime", ILI9341_WHITE);
+    addToTerminal("  info    - system info", ILI9341_WHITE);
+    addToTerminal("  reset   - restart system", ILI9341_WHITE);
+}
     else if (command == "status") {
         addToTerminal("=== Status ===", ILI9341_YELLOW);
         addToTerminal(("Keyboard: " + String(keyboard1 ? "CONNECTED" : "NOT CONNECTED")).c_str(), 
