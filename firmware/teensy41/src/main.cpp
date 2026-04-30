@@ -1,4 +1,4 @@
-// Doomsday Net Computer - With DoomsdayMessageBus
+// Doomsday Net Computer - With DoomsdayMessageBus + MeshCoreBus
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
@@ -8,6 +8,7 @@
 #include "terminal.h"
 #include "commands.h"
 #include <DoomsdayMessageBus.h>
+#include <MeshCoreBus.h>
 
 // ==================== GLOBALS ====================
 ILI9341_t3 tft = ILI9341_t3(TFT_CS, TFT_DC, TFT_RST);
@@ -19,12 +20,15 @@ USBHub hub1(myusb);
 USBHIDParser hid1(myusb);
 KeyboardController keyboard1(myusb);
 
+// Doomsday Message Bus on Serial1 (pins 0/1)
+DoomsdayMessageBus doomsdayBus(Serial1);
+
+// MeshCore Bus on Serial2 (pins 7/8) - DIFFERENT UART
+MeshCoreBus meshCore(Serial2);
+
 char cmdBuffer[MAX_CMD];
 int cmdIndex = 0;
 String currentPath = "/";
-
-// Doomsday Message Bus instance
-DoomsdayMessageBus doomsdayBus(Serial1);
 
 // ==================== USB KEYBOARD ====================
 void OnPress(int key) {
@@ -80,8 +84,8 @@ void setup() {
     tft.setRotation(1);
     tft.fillScreen(ILI9341_BLACK);
 
-    addToTerminal("=== Doomsday Net Computer v0.21 ===", ILI9341_GREEN);
-    addToTerminal("All libraries loaded: Terminal, Commands, DoomsdayMessageBus", ILI9341_YELLOW);
+    addToTerminal("=== Doomsday Net Computer v0.22 ===", ILI9341_GREEN);
+    addToTerminal("Libraries: Terminal, Commands, DoomsdayBus, MeshCoreBus", ILI9341_YELLOW);
 
     if (!SD.begin(SD_CS_PIN)) {
         addToTerminal("SD card FAILED", ILI9341_RED);
@@ -92,10 +96,16 @@ void setup() {
     keyboard1.attachPress(OnPress);
     myusb.begin();
 
-    // Initialize Doomsday Message Bus
+    // Initialize Doomsday Message Bus (Serial1)
     doomsdayBus.begin();
     doomsdayBus.subscribe("status", [](const char* topic, const char* msg) {
-        addToTerminal(("Doomsday Bus: " + String(msg)).c_str(), ILI9341_CYAN);
+        addToTerminal(("Doomsday: " + String(msg)).c_str(), ILI9341_CYAN);
+    });
+
+    // Initialize MeshCore Bus (Serial2)
+    meshCore.begin();
+    meshCore.onMessage([](const char* from, const char* msg) {
+        addToTerminal(("Mesh: " + String(from) + ": " + String(msg)).c_str(), ILI9341_CYAN);
     });
 
     printPrompt();
@@ -104,6 +114,7 @@ void setup() {
 void loop() {
     myusb.Task();
     doomsdayBus.update();
+    meshCore.update();
     
     while (Serial.available() > 0) {
         char c = Serial.read();
