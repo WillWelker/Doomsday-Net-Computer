@@ -95,5 +95,5 @@ lib_deps =
 
     Include in your code:
 
-3.   #include "MeshCoreBus.h"
+3.   #include "MeshCoreBus.h" 
 

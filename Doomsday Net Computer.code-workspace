@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "teensy41",
+			"path": "firmware/teensy41"
+		}
+	],
+	"settings": {}
+}
