@@ -2,108 +2,90 @@
 #define COMMANDS_H
 
 #include <Arduino.h>
-#include <SD.h>
-#include <USBHost_t36.h>
-#include "config.h"
-#include "terminal.h"
+#include "TerminalDisplay.h"
+#include "FileManager.h"
+#include "MeshCoreBus.h"
 
-extern KeyboardController keyboard1;
-
-// ==================== COMMAND IMPLEMENTATIONS ====================
+extern TerminalDisplay terminal;
+extern FileManager files;
+extern MeshCoreBus mesh;
+extern String currentPath;
 
 void handleCommand(const char* cmd) {
     String command = String(cmd);
     command.trim();
-    command.toLowerCase();
-
+    
     if (command == "help") {
-    addToTerminal("Available commands:", ILI9341_WHITE);
-    addToTerminal("  help    - this help", ILI9341_WHITE);
-    addToTerminal("  status  - show system status", ILI9341_WHITE);
-    addToTerminal("  ls      - list files", ILI9341_WHITE);
-    addToTerminal("  pwd     - print working directory", ILI9341_WHITE);
-    addToTerminal("  cd <dir> - change directory", ILI9341_WHITE);
-    addToTerminal("  cat <file> - display file", ILI9341_WHITE);
-    addToTerminal("  echo \"text\" > file - write to file", ILI9341_WHITE);
-    addToTerminal("  mkdir <name> - create directory", ILI9341_WHITE);
-    addToTerminal("  rm <file> - delete file", ILI9341_WHITE);
-    addToTerminal("  uptime  - show uptime", ILI9341_WHITE);
-    addToTerminal("  info    - system info", ILI9341_WHITE);
-    addToTerminal("  reset   - restart system", ILI9341_WHITE);
-}
-    else if (command == "status") {
-        addToTerminal("=== Status ===", ILI9341_YELLOW);
-        addToTerminal(("Keyboard: " + String(keyboard1 ? "CONNECTED" : "NOT CONNECTED")).c_str(), 
-                      keyboard1 ? ILI9341_GREEN : ILI9341_RED);
-        addToTerminal(("SD Card: " + String(SD.exists("/") ? "CONNECTED" : "NOT CONNECTED")).c_str(),
-                      SD.exists("/") ? ILI9341_GREEN : ILI9341_RED);
-        addToTerminal(("Uptime: " + String(millis() / 1000) + "s").c_str(), ILI9341_WHITE);
+        terminal.addLine("Available commands:", 0xFFFF);
+        terminal.addLine("  help    - show this help", 0xFFFF);
+        terminal.addLine("  info    - system information", 0xFFFF);
+        terminal.addLine("  mesh <msg> - send message to public channel", 0xFFFF);
+        terminal.addLine("  uptime  - show system uptime", 0xFFFF);
+        terminal.addLine("  ls      - list files in current directory", 0x07E0);
+        terminal.addLine("  cd <dir> - change directory", 0x07E0);
+        terminal.addLine("  cat <file> - display file contents", 0x07E0);
+        terminal.addLine("  mkdir <dir> - create directory", 0x07E0);
+        terminal.addLine("  rm <file> - delete file", 0x07E0);
+        terminal.addLine("  echo <text> - print text", 0xFFFF);
+        terminal.addLine("  reset   - restart system", 0xF800);
+    }
+    else if (command.startsWith("mesh ")) {
+        String msg = command.substring(5);
+        msg.trim();
+        if (msg.length() > 0) {
+            mesh.sendChannel(0, msg.c_str());
+            terminal.addLine(("Mesh TX: " + msg).c_str(), 0xFFE0);
+        }
+    }
+    else if (command == "info") {
+        terminal.addLine("Doomsday Net Computer v0.26 - FileManager Ready", 0x07E0);
+    }
+    else if (command == "uptime") {
+        char buf[40];
+        snprintf(buf, sizeof(buf), "Uptime: %lu seconds", millis() / 1000);
+        terminal.addLine(buf, 0xFFFF);
     }
     else if (command == "ls") {
-        File dir = SD.open(currentPath.c_str());
-        if (dir) {
-            File entry = dir.openNextFile();
-            while (entry) {
-                String line = entry.isDirectory() ? "DIR  " : "FILE ";
-                line += entry.name();
-                addToTerminal(line.c_str(), ILI9341_WHITE);
-                entry.close();
-                entry = dir.openNextFile();
-            }
-            dir.close();
-        }
-    }
-    else if (command == "pwd") {
-        addToTerminal(currentPath.c_str(), ILI9341_WHITE);
+        files.listDir();
     }
     else if (command.startsWith("cd ")) {
-        String newPath = command.substring(3);
-        newPath.trim();
-        if (SD.exists(newPath.c_str())) {
-            currentPath = newPath;
-            addToTerminal(("Changed to: " + currentPath).c_str(), ILI9341_YELLOW);
-        } else {
-            addToTerminal("Directory not found", ILI9341_RED);
-        }
+        String path = command.substring(3);
+        path.trim();
+        files.changeDir(path.c_str()) ? 
+            terminal.addLine(("Now in: " + files.getCurrentPath()).c_str(), 0x07E0) :
+            terminal.addLine("Directory not found", 0xF800);
     }
     else if (command.startsWith("cat ")) {
         String filename = command.substring(4);
         filename.trim();
-        File f = SD.open(filename.c_str());
-        if (f) {
-            while (f.available()) {
-                Serial.write(f.read());
-            }
-            f.close();
-        } else {
-            addToTerminal("File not found", ILI9341_RED);
-        }
+        files.catFile(filename.c_str()) ? 
+            terminal.addLine("File displayed", 0x07E0) :
+            terminal.addLine("File not found", 0xF800);
     }
-    else if (command == "uptime") {
-        addToTerminal(("Uptime: " + String(millis() / 1000) + " seconds").c_str(), ILI9341_WHITE);
+    else if (command.startsWith("mkdir ")) {
+        String dirname = command.substring(6);
+        dirname.trim();
+        files.makeDir(dirname.c_str()) ? 
+            terminal.addLine("Directory created", 0x07E0) :
+            terminal.addLine("Failed", 0xF800);
     }
-    else if (command == "info") {
-        addToTerminal("Teensy 4.1 Terminal v0.20", ILI9341_YELLOW);
+    else if (command.startsWith("rm ")) {
+        String filename = command.substring(3);
+        filename.trim();
+        files.removeFile(filename.c_str()) ? 
+            terminal.addLine("File deleted", 0x07E0) :
+            terminal.addLine("Failed", 0xF800);
+    }
+    else if (command.startsWith("echo ")) {
+        String text = command.substring(5);
+        terminal.addLine(text.c_str(), 0xFFFF);
     }
     else if (command == "reset") {
         SCB_AIRCR = 0x05FA0004;
     }
-    else if (command.length() > 0) {
-        addToTerminal(("Unknown: " + command).c_str(), ILI9341_RED);
+    else {
+        terminal.addLine(("Unknown: " + command).c_str(), 0xF800);
     }
 }
-
-void cmd_help() { handleCommand("help"); }
-void cmd_status() { handleCommand("status"); }
-void cmd_ls() { handleCommand("ls"); }
-void cmd_pwd() { handleCommand("pwd"); }
-void cmd_cd(const char* args) { handleCommand(("cd " + String(args)).c_str()); }
-void cmd_cat(const char* args) { handleCommand(("cat " + String(args)).c_str()); }
-void cmd_echo(const char* args) { handleCommand(("echo " + String(args)).c_str()); }
-void cmd_mkdir(const char* args) { handleCommand(("mkdir " + String(args)).c_str()); }
-void cmd_rm(const char* args) { handleCommand(("rm " + String(args)).c_str()); }
-void cmd_uptime() { handleCommand("uptime"); }
-void cmd_info() { handleCommand("info"); }
-void cmd_reset() { handleCommand("reset"); }
 
 #endif
