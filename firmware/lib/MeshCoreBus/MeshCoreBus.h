@@ -1,19 +1,20 @@
 /*
   MeshCoreBus.h - MeshCore Companion Protocol Library
-  For Teensy 4.1 USB Host or UART connection
+  Updated to support shared USBHost (for use with KeyboardInput + USB Hub)
 */
 
 #ifndef MESHCOREBUS_H
 #define MESHCOREBUS_H
 
 #include <Arduino.h>
-
-class USBSerial;
-class HardwareSerial;
+#include <USBHost_t36.h>
 
 class MeshCoreBus {
 public:
-    MeshCoreBus(USBSerial& serial);
+    // Constructor for USB Host mode (recommended when using USB hub + keyboard)
+    MeshCoreBus(USBHost& usbHost, USBSerial& serial);
+    
+    // Constructor for HardwareSerial (legacy / direct UART)
     MeshCoreBus(HardwareSerial& serial, uint32_t baud = 115200);
     
     void begin();
@@ -29,8 +30,9 @@ public:
     uint32_t getLastActivity() const { return _lastActivity; }
     
     void setDebugPrint(Print* printer) { _debug = printer; }
-    
+
 private:
+    USBHost* _usbHost;
     USBSerial* _usbSerial;
     HardwareSerial* _hwSerial;
     bool _isUSB;
@@ -60,7 +62,6 @@ private:
     void requestNextMessage();
     void parseFrame(const uint8_t* data, uint16_t len);
     void handleRxByte(uint8_t b);
-    void debugPrint(const char* msg);
 };
 
 #endif

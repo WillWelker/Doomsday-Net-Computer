@@ -15,9 +15,9 @@ public:
 private:
     HardwareSerial& _serial;
     uint32_t _baud;
-    char _buffer[256];
+    char _buffer[512];
     int _bufIndex;
-    
+
     static const int MAX_SUBSCRIPTIONS = 10;
     struct Subscription {
         char topic[32];
@@ -25,8 +25,10 @@ private:
     };
     Subscription _subscriptions[MAX_SUBSCRIPTIONS];
     int _subCount;
-    
+
     void parseMessage(const char* msg);
+    void escapeString(const char* input, char* output, int maxLen);
+    void unescapeString(const char* input, char* output, int maxLen);
 };
 
 #endif
