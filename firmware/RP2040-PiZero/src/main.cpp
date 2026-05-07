@@ -7,6 +7,9 @@
 #include "dvi.h"
 #include "common_dvi_pin_configs.h"
 
+// DVI instance (required by the library)
+struct dvi_inst dvi0;
+
 // ==================== DOOMSDAY PROJECT IDENTITY ====================
 // RP2040-PiZero HDMI Test Node
 // Part of 5× UNO R4 Minima modular UART-linked setup
