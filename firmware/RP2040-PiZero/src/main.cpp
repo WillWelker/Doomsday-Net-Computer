@@ -4,8 +4,8 @@
 #include "config.h"
 
 // DVI Library (flattened to firmware/lib/DVI/)
-#include "DVI/dvi.h"
-#include "DVI/common_dvi_pin_configs.h"
+#include "dvi.h"
+#include "common_dvi_pin_configs.h"
 
 // ==================== DOOMSDAY PROJECT IDENTITY ====================
 // RP2040-PiZero HDMI Test Node
