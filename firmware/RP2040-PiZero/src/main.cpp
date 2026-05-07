@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include "config.h"
+#include "pico/sync.h"   // for spinlock_claim_unused()
 
 // DVI Library (flattened to firmware/lib/DVI/)
 #include "dvi.h"
