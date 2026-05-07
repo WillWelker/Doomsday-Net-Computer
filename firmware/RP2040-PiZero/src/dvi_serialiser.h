@@ -1,15 +1,22 @@
 #ifndef _DVI_SERIALISER_H
 #define _DVI_SERIALISER_H
 
-#include "dvi_config_defs.h"
 #include "hardware/pio.h"
+#include "dvi_config_defs.h"
 
-// Public API
+#define N_TMDS_LANES 3
+
+struct dvi_serialiser_cfg {
+	PIO pio;
+	uint sm_tmds[N_TMDS_LANES];
+	uint pins_tmds[N_TMDS_LANES];
+	uint pins_clk;
+	bool invert_diffpairs;
+	uint prog_offs;
+};
+
 void dvi_serialiser_init(struct dvi_serialiser_cfg *cfg);
 void dvi_serialiser_enable(struct dvi_serialiser_cfg *cfg, bool enable);
-void dvi_serialiser_set_pio_program(struct dvi_serialiser_cfg *cfg, const pio_program_t *program);
-
-// Internal functions
-void dvi_serialiser_program_init(PIO pio, uint sm, uint offset, uint pin_base, uint num_pins, uint clk_pio);
+uint32_t dvi_single_to_diff(uint32_t in);
 
 #endif
