@@ -3,35 +3,39 @@
 #include <SD.h>
 #include "config.h"
 
-// ==================== DOOMSDAY PROJECT IDENTITY (HDMI TEST PHASE) ====================
+// DVI Library (from firmware/lib/DVI/hello_dvi/)
+#include "DVI/hello_dvi/dvi.h"
+#include "DVI/hello_dvi/common_dvi_pin_configs.h"
+
+// ==================== DOOMSDAY PROJECT IDENTITY ====================
 // RP2040-PiZero HDMI Test Node
 // Part of 5× UNO R4 Minima modular UART-linked setup
 // Air-gapped, EMP-protected, low-power HF/VHF/ISM comms
 // Unified firmware with mode byte in flash (prior decision referenced)
-// Current focus: HDMI/DVI output milestone ONLY (DMB re-added after HDMI works)
 
-// ==================== MODE BYTE (unified firmware prior decision) ====================
-#define MODE_BYTE_ADDR 0x101FF000
+// ==================== DVI CONFIG (Waveshare RP2040-PiZero) ====================
+static const struct dvi_serialiser_cfg dvi_cfg = DVI_DEFAULT_SERIAL_CONFIG;
 
-uint8_t readModeByte() {
-    return 0x10;  // DISPLAY_NODE mode for this RP2040-PiZero
-}
-
-// ==================== DVI / HDMI TEST (PicoDVI / Waveshare 01-DVI placeholder) ====================
 void initDVI() {
-    // TODO: Integrate real PicoDVI or Waveshare libvi here
-    // After integration this will drive the onboard mini HDMI at 640x480@60Hz
-    Serial.println("[DVI] HDMI/DVI output initialized (640x480@60Hz)");
+    dvi_init(&dvi0, &dvi_cfg);
+    dvi_start(&dvi0);
+    Serial.println("[DVI] HDMI output active @ 640x480@60Hz");
 }
 
 void drawHDMITestScreen() {
+    // Basic test - in full version this would draw text/pattern via framebuffer
+    // For now we rely on Serial + future LVGL overlay
     Serial.println("[HDMI] === Doomsday Net Computer - RP2040-PiZero HDMI Test v0.28 ===");
     Serial.println("[HDMI] 5x UNO R4 Minima | Air-gapped | EMP-protected | Low-power HF/VHF/ISM");
     Serial.println("[HDMI] Mode byte: 0x10 (DISPLAY_NODE) - unified firmware prior decision");
-    Serial.println("[HDMI] Ready for real DVI driver + retro LVGL terminal");
+    Serial.println("[HDMI] Real DVI driver active - monitor should show output");
 }
 
-// ==================== SETUP ====================
+// ==================== MODE BYTE ====================
+uint8_t readModeByte() {
+    return 0x10;  // DISPLAY_NODE
+}
+
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -46,12 +50,10 @@ void setup() {
     initDVI();
     drawHDMITestScreen();
     
-    Serial.println("HDMI test phase active - DMB and other libs paused until HDMI works");
+    Serial.println("HDMI test phase active - DMB paused until HDMI confirmed working");
 }
 
-// ==================== LOOP ====================
 void loop() {
-    // Heartbeat
     static uint32_t lastBeat = 0;
     if (millis() - lastBeat > 1000) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
