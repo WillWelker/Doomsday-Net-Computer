@@ -6,9 +6,10 @@
 // Air-gapped, EMP-protected, low-power HF/VHF/ISM comms
 // Unified firmware with mode byte in flash (prior decision referenced)
 
-// ==================== MODE BYTE ====================
+// ==================== MODE BYTE (Flash at 0x101FF000) ====================
 uint8_t readModeByte() {
-    return 0x10;  // DISPLAY_NODE
+    volatile uint8_t* modeAddr = (volatile uint8_t*)MODE_BYTE_ADDR;
+    return *modeAddr;   // Will be 0x10 (DISPLAY_NODE) once programmed
 }
 
 void setup() {
@@ -19,10 +20,11 @@ void setup() {
     digitalWrite(LED_BUILTIN, HIGH);
     
     uint8_t mode = readModeByte();
-    Serial.print("[BOOT] Mode byte read: 0x");
+    Serial.print("[BOOT] Mode byte read from flash: 0x");
     Serial.println(mode, HEX);
     
-    Serial.println("Adafruit RP2040 Feather DVI - Placeholder v0.01");
+    Serial.println("Adafruit RP2040 Feather DVI - Doomsday Node v0.01 ONLINE");
+    Serial.println("Ready for DVI output + DoomsdayMessageBus UART link to UNO R4 Minima cluster");
 }
 
 void loop() {
