@@ -1,3 +1,9 @@
+// Doomsday Ham Radio Comms Computer - Adafruit RP2040 Feather DVI Node v0.02
+// 5× UNO R4 Minima modular UART-linked setup
+// Air-gapped, EMP-protected, low-power HF/VHF/ISM comms
+// Unified firmware with mode byte in flash (prior decision referenced)
+// VERSION: 0.02 - 2026-05-07 - Earlephilhower core fix + proper mode byte flash read
+
 #include <Arduino.h>
 
 // ==================== DOOMSDAY PROJECT IDENTITY ====================
@@ -23,7 +29,7 @@ void setup() {
     Serial.print("[BOOT] Mode byte read from flash: 0x");
     Serial.println(mode, HEX);
     
-    Serial.println("Adafruit RP2040 Feather DVI - Doomsday Node v0.01 ONLINE");
+    Serial.println("Adafruit RP2040 Feather DVI - Doomsday Node v0.02 ONLINE");
     Serial.println("Ready for DVI output + DoomsdayMessageBus UART link to UNO R4 Minima cluster");
 }
 
