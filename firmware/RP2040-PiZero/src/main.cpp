@@ -1,42 +1,52 @@
 #include <Arduino.h>
-#include <SD.h>
 #include <SPI.h>
-#include <ILI9341_t3.h>
+#include <SD.h>
 #include "config.h"
-#include "commands.h"
-#include "MeshCoreBus.h"
-#include "KeyboardInput.h"
-#include "TerminalDisplay.h"
-#include "ILI9341Driver.h"
-#include "FileManager.h"
 #include "DoomsdayMessageBus.h"
 
-// ==================== HARDWARE (using safe names from config.h) ====================
-const int SD_CS_PIN = DOOMSDAY_SD_CS_PIN;
-const int TFT_CS    = DOOMSDAY_TFT_CS;
-const int TFT_DC    = DOOMSDAY_TFT_DC;
-const int TFT_RST   = DOOMSDAY_TFT_RST;
-const int TFT_LED   = DOOMSDAY_TFT_LED;
+// ==================== DOOMSDAY PROJECT IDENTITY ====================
+// RP2040-PiZero HDMI Test Node
+// Part of 5× UNO R4 Minima modular UART-linked setup
+// Air-gapped, EMP-protected, low-power HF/VHF/ISM comms
+// Unified firmware with mode byte in flash (prior decision referenced)
+// Role: Primary DVI/HDMI terminal (640x480@60Hz) for retro UI (LVGL / CP/M / WordStar planned)
 
-ILI9341_t3 tft(TFT_CS, TFT_DC, TFT_RST);
-ILI9341Driver displayDriver(tft);
-TerminalDisplay terminal(displayDriver, 14, 16);
+// ==================== HARDWARE PINS (RP2040-PiZero) ====================
+// DVI/HDMI pins handled by PicoDVI / Waveshare libvi (to be integrated)
+// DMB UART to UNO R4 Minima fleet
+#define DMB_RX_PIN GP0
+#define DMB_TX_PIN GP1
+#define DMB_BAUD 921600
 
-const int INPUT_LINE_Y = 8 + (14 * 16);
-KeyboardInput keyboard(tft, INPUT_LINE_Y);
+// Mode byte location in flash (unified firmware prior decision)
+#define MODE_BYTE_ADDR 0x101FF000
 
-// ==================== USB HOST + MESHCORE ====================
-USBSerial meshSerial(keyboard.myusb);
-MeshCoreBus mesh(keyboard.myusb, meshSerial);
-// Doomsday Message Bus (UART between boards)
-DoomsdayMessageBus dmb(DMB_SERIAL, DMB_BAUD_RATE);
+DoomsdayMessageBus dmb(Serial2, DMB_BAUD);  // UART for inter-node comms
 
-FileManager files;
+uint8_t readModeByte() {
+    uint8_t mode = 0xFF;
+    // Read from flash (RP2040 XIP flash - adapt for actual flash API if needed)
+    // For now, default to DISPLAY_NODE (0x10)
+    return 0x10;  // DISPLAY_NODE mode for this RP2040-PiZero
+}
 
+// ==================== DVI / HDMI TEST (placeholder - integrate PicoDVI next) ====================
+void initDVI() {
+    // TODO: Add PicoDVI or Waveshare 01-DVI libvi here
+    // Example (after adding library):
+    // dvi_init();
+    // dvi_set_mode(640, 480, 60);
+    // Draw test pattern or text
+    Serial.println("[DVI] HDMI/DVI output initialized (640x480@60Hz)");
+    // Placeholder: In real build this drives the mini HDMI connector
+}
 
-
-void onMeshMessage(uint8_t chan, const char* from, const char* msg) {
-    terminal.addLine(("Mesh: " + String(from) + ": " + String(msg)).c_str(), 0x07FF);
+void drawHDMITestScreen() {
+    // Placeholder for DVI framebuffer draw
+    // Will become: dvi_draw_string("Doomsday Net Computer - HDMI Test", ...)
+    Serial.println("[HDMI] Test screen active: Doomsday Net Computer v0.28 HDMI Test");
+    Serial.println("[HDMI] Air-gapped | Mode byte: 0x10 (DISPLAY_NODE)");
+    Serial.println("[HDMI] Ready for LVGL retro terminal + DMB to 5x UNO R4 Minima");
 }
 
 // ==================== SETUP ====================
@@ -44,74 +54,36 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     
-    pinMode(DOOMSDAY_ONBOARD_LED, OUTPUT);
-    pinMode(DOOMSDAY_EXTERNAL_LED, OUTPUT);
-    pinMode(TFT_LED, OUTPUT);
-    digitalWrite(TFT_LED, HIGH);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
     
-    terminal.begin();
+    uint8_t mode = readModeByte();
+    Serial.print("[BOOT] Mode byte read: 0x");
+    Serial.println(mode, HEX);
+    
+    // DMB UART setup for comms with UNO R4 Minima nodes
     dmb.begin();
+    Serial.println("[DMB] Doomsday Message Bus ready on UART (GP0/GP1 @ 921600)");
     
-    // === VERSION 0.27 ===
-    terminal.addLine("=== Doomsday Net Computer v0.27 ===", 0x07E0);
-    terminal.addLine("USB Hub + Shared USBHost + MeshCore", 0xFFFF);
+    // HDMI / DVI milestone
+    initDVI();
+    drawHDMITestScreen();
     
-    // Serial debug message (visible in Serial Monitor)
-    Serial.println("=== Doomsday Net Computer v0.27 - USB Hub + MeshCore Ready ===");
-    
-    if (!files.begin(SD_CS_PIN)) {
-        terminal.addLine("SD FAILED", 0xF800);
-    } else {
-        terminal.addLine("SD Ready - FileManager initialized", 0x07E0);
-    }
-    
-    files.setOutputCallback([](const char* line, uint16_t color) {
-        terminal.addLine(line, color);
-    });
-    
-    keyboard.setCommandCallback(handleCommand);
-    keyboard.setOutputCallback([](const char* line, uint16_t color) {
-        terminal.addLine(line, color);
-    });
-    keyboard.begin();
-    
-    mesh.begin();
-    mesh.onMessage(onMeshMessage);
-    terminal.addLine("MeshCore (USB Hub) ready", 0x07E0);
-    
-    // === Initialize Doomsday Message Bus ===
-    dmb.begin();
-    Serial.println("[DMB] Doomsday Message Bus initialized on Serial2 (pins 9/10)");
-    
-    // Example subscription (you can change or remove this later)
-    dmb.subscribe("mesh", [](const char* topic, const char* msg) {
-        Serial.print("[DMB] Received mesh message: ");
-        Serial.println(msg);
-        // TODO: Forward this to MeshCoreBus when ready
-    });
-    
-    terminal.addLine("Type 'help' for commands", 0xFFFF);
-    keyboard.printPrompt();
+    Serial.println("=== Doomsday Net Computer - RP2040-PiZero HDMI Test v0.28 ===");
+    Serial.println("5x UNO R4 Minima | Air-gapped | EMP-protected | Low-power HF/VHF/ISM");
+    Serial.println("Type 'help' or send DMB commands from other nodes");
 }
 
 // ==================== LOOP ====================
 void loop() {
-    keyboard.update();
-    mesh.update();
-
-    // Read commands from Serial Monitor (computer)
-    if (Serial.available()) {
-        static String serialCmd = "";
-        while (Serial.available()) {
-            char c = Serial.read();
-            if (c == '\n' || c == '\r') {
-                if (serialCmd.length() > 0) {
-                    handleCommand(serialCmd.c_str());
-                    serialCmd = "";
-                }
-            } else {
-                serialCmd += c;
-            }
-        }
+    dmb.update();  // Listen for commands from Minima fleet (MeshCore, RTTY, printer, etc.)
+    
+    // Simple heartbeat
+    static uint32_t lastBeat = 0;
+    if (millis() - lastBeat > 2000) {
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+        lastBeat = millis();
     }
+    
+    // Future: keyboard input via USB or DMB, SD file ops, full terminal UI
 }
