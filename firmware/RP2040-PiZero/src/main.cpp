@@ -20,7 +20,10 @@ struct dvi_inst dvi0;
 static const struct dvi_serialiser_cfg dvi_cfg = DVI_DEFAULT_SERIAL_CONFIG;
 
 void initDVI() {
-    dvi_init(&dvi0, &dvi_cfg);
+    // Correct signature: dvi_init(inst, spinlock_tmds_queue, spinlock_colour_queue)
+    uint spinlock_tmds = spinlock_claim_unused(true);
+    uint spinlock_colour = spinlock_claim_unused(true);
+    dvi_init(&dvi0, spinlock_tmds, spinlock_colour);
     dvi_start(&dvi0);
     Serial.println("[DVI] HDMI output active @ 640x480@60Hz (flattened path)");
 }
