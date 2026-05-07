@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include "config.h"
-#include "pico/sync.h"   // for spinlock_claim_unused()
+#include "pico/sync.h"   // for spin_lock_claim_unused()
 
 // DVI Library (flattened to firmware/lib/DVI/)
 #include "dvi.h"
@@ -21,9 +21,9 @@ struct dvi_inst dvi0;
 static const struct dvi_serialiser_cfg dvi_cfg = DVI_DEFAULT_SERIAL_CONFIG;
 
 void initDVI() {
-    // Correct signature: dvi_init(inst, spinlock_tmds_queue, spinlock_colour_queue)
-    uint spinlock_tmds = spinlock_claim_unused(true);
-    uint spinlock_colour = spinlock_claim_unused(true);
+    // Correct signature: dvi_init(inst, spin_lock_claim_unused(true), spin_lock_claim_unused(true))
+    uint spinlock_tmds = spin_lock_claim_unused(true);
+    uint spinlock_colour = spin_lock_claim_unused(true);
     dvi_init(&dvi0, spinlock_tmds, spinlock_colour);
     dvi_start(&dvi0);
     Serial.println("[DVI] HDMI output active @ 640x480@60Hz (flattened path)");
