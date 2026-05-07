@@ -1,8 +1,8 @@
-// Doomsday Ham Radio Comms Computer - Adafruit RP2040 Feather DVI Node v0.04
+// Doomsday Ham Radio Comms Computer - Adafruit RP2040 Feather DVI Node v0.05
 // 5× UNO R4 Minima modular UART-linked setup
 // Air-gapped, EMP-protected, low-power HF/VHF/ISM comms
 // Unified firmware with mode byte in flash (prior decision referenced)
-// VERSION: 0.04 - 2026-05-07 - 400x240 internal (800x480 HDMI) DVI test + mode byte + blink
+// VERSION: 0.05 - 2026-05-07 - FIXED DVIGFX16 constructor for current Adafruit PicoDVI fork
 
 #include <Arduino.h>
 #include <PicoDVI.h>
@@ -19,8 +19,8 @@ uint8_t readModeByte() {
     return *modeAddr;
 }
 
-// DVI display - 400x240 internal → crisp 800x480 HDMI
-DVIGFX16 display(DVI_RES_400x240p60, false, adafruit_feather_dvi_cfg);
+// DVI display - 400x240 internal → crisp 800x480 HDMI (corrected constructor)
+DVIGFX16 display(DVI_RES_400x240p60, adafruit_feather_dvi_cfg);
 
 void setup() {
     Serial.begin(115200);
@@ -32,10 +32,10 @@ void setup() {
     uint8_t mode = readModeByte();
     Serial.print("[BOOT] Mode byte read from flash: 0x");
     Serial.println(mode, HEX);
-    Serial.println("Adafruit RP2040 Feather DVI - Doomsday Node v0.04 ONLINE");
+    Serial.println("Adafruit RP2040 Feather DVI - Doomsday Node v0.05 ONLINE");
     Serial.println("Claiming 800x480 HDMI output for 5x UNO R4 Minima cluster");
 
-    // Initialize DVI - this claims the display from factory demo
+    // Initialize DVI - claims display from factory demo
     if (!display.begin()) {
         Serial.println("DVI init FAILED");
         while (1) delay(100);
@@ -44,7 +44,7 @@ void setup() {
     display.setTextColor(0xFFFF);         // white
     display.setTextSize(2);
     display.setCursor(20, 20);
-    display.print("DOOMSDAY v0.04");
+    display.print("DOOMSDAY v0.05");
     display.setCursor(20, 60);
     display.print("800x480 HDMI ONLINE");
     display.setCursor(20, 100);
