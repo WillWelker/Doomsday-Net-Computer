@@ -1,5 +1,7 @@
 # Doomsday Net Computer - Grok Context File
 
+**Version**: v1.1 (May 7, 2026) — Added Section 7 with critical Waveshare RP2040-PiZero lessons
+
 **Purpose**: This file exists so Grok can maintain persistent context across multiple conversations about this project, even when conversations become too long and new ones are started.
 
 **Last Updated**: May 7, 2026
