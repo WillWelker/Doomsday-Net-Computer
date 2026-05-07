@@ -3,9 +3,9 @@
 #include <SD.h>
 #include "config.h"
 
-// DVI Library (from firmware/lib/DVI/hello_dvi/)
-#include "DVI/hello_dvi/dvi.h"
-#include "DVI/hello_dvi/common_dvi_pin_configs.h"
+// DVI Library (flattened to firmware/lib/DVI/)
+#include "DVI/dvi.h"
+#include "DVI/common_dvi_pin_configs.h"
 
 // ==================== DOOMSDAY PROJECT IDENTITY ====================
 // RP2040-PiZero HDMI Test Node
@@ -19,12 +19,10 @@ static const struct dvi_serialiser_cfg dvi_cfg = DVI_DEFAULT_SERIAL_CONFIG;
 void initDVI() {
     dvi_init(&dvi0, &dvi_cfg);
     dvi_start(&dvi0);
-    Serial.println("[DVI] HDMI output active @ 640x480@60Hz");
+    Serial.println("[DVI] HDMI output active @ 640x480@60Hz (flattened path)");
 }
 
 void drawHDMITestScreen() {
-    // Basic test - in full version this would draw text/pattern via framebuffer
-    // For now we rely on Serial + future LVGL overlay
     Serial.println("[HDMI] === Doomsday Net Computer - RP2040-PiZero HDMI Test v0.28 ===");
     Serial.println("[HDMI] 5x UNO R4 Minima | Air-gapped | EMP-protected | Low-power HF/VHF/ISM");
     Serial.println("[HDMI] Mode byte: 0x10 (DISPLAY_NODE) - unified firmware prior decision");
