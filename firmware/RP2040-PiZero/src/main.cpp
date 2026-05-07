@@ -11,6 +11,9 @@
 // DVI instance (required by the library)
 struct dvi_inst dvi0;
 
+// ==================== FIRMWARE VERSION ======================
+#define FIRMWARE_VERSION "v0.30"
+
 // ==================== DOOMSDAY PROJECT IDENTITY ====================
 // RP2040-PiZero HDMI Test Node
 // Part of 5× UNO R4 Minima modular UART-linked setup
@@ -21,7 +24,6 @@ struct dvi_inst dvi0;
 static const struct dvi_serialiser_cfg dvi_cfg = DVI_DEFAULT_SERIAL_CONFIG;
 
 void initDVI() {
-    // Correct signature: dvi_init(inst, spin_lock_claim_unused(true), spin_lock_claim_unused(true))
     uint spinlock_tmds = spin_lock_claim_unused(true);
     uint spinlock_colour = spin_lock_claim_unused(true);
     dvi_init(&dvi0, spinlock_tmds, spinlock_colour);
@@ -30,7 +32,7 @@ void initDVI() {
 }
 
 void drawHDMITestScreen() {
-    Serial.println("[HDMI] === Doomsday Net Computer - RP2040-PiZero HDMI Test v0.28 ===");
+    Serial.println("[HDMI] === Doomsday Net Computer - RP2040-PiZero HDMI Test " FIRMWARE_VERSION " ===");
     Serial.println("[HDMI] 5x UNO R4 Minima | Air-gapped | EMP-protected | Low-power HF/VHF/ISM");
     Serial.println("[HDMI] Mode byte: 0x10 (DISPLAY_NODE) - unified firmware prior decision");
     Serial.println("[HDMI] Real DVI driver active - monitor should show output");
@@ -51,6 +53,8 @@ void setup() {
     uint8_t mode = readModeByte();
     Serial.print("[BOOT] Mode byte read: 0x");
     Serial.println(mode, HEX);
+    Serial.print("[BOOT] Firmware version: ");
+    Serial.println(FIRMWARE_VERSION);
     
     initDVI();
     drawHDMITestScreen();
