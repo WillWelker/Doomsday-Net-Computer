@@ -19,10 +19,10 @@ MeshCoreBus::MeshCoreBus(HardwareSerial& serial, uint32_t baud)
 
 void MeshCoreBus::begin() {
     Serial.println("[MeshCoreBus] === Initializing MeshCoreBus (USB Hub mode - NO AppStart) ===");
-    
+
     // Temporarily disabled - testing without sendAppStart
     // sendAppStart();
-    
+
     _connected = true;
     _lastActivity = millis();
     Serial.println("[MeshCoreBus] Initialized - Connected flag set to TRUE (no AppStart sent)");
@@ -98,7 +98,7 @@ void MeshCoreBus::writeFrame(const uint8_t* data, uint16_t len) {
         _usbSerial->flush();
         delay(2);
         Serial.println("[MeshCoreBus] >>> USB write complete + flushed");
-    } 
+    }
     else if (_hwSerial) {
         _hwSerial->write(fullPacket, 3 + len);
     }
@@ -117,30 +117,31 @@ void MeshCoreBus::requestNextMessage() {
 }
 
 void MeshCoreBus::parseFrame(const uint8_t* data, uint16_t len) {
+    if (len < 1) return;
+
+    uint8_t type = data[0];
+
     Serial.print("[MeshCoreBus] <<< PARSED FRAME type=0x");
-    Serial.print(data[0], HEX);
+    Serial.print(type, HEX);
     Serial.print(" len=");
     Serial.println(len);
 
-    if (len < 1) return;
-    uint8_t type = data[0];
-    
     if (type == PKT_CHAN_MSG && len >= 6) {
-        uint8_t chan = data[1];
-        const char* msg = (const char*)(data + 6);
-        Serial.print("[MeshCoreBus] <<< RECEIVED on ch");
-        Serial.print(chan);
-        Serial.print(": ");
-        Serial.println(msg);
-        
-        if (_msgCallback) _msgCallback(chan, "MeshCore", msg);
-    }
-    else if (type == PKT_MSG_WAITING) {
-        Serial.println("[MeshCoreBus] <<< Message waiting - auto fetching...");
+        char cleanMsg[128];
+        uint16_t msgLen = len - 8;
+        if (msgLen > 127) msgLen = 127;
+
+        memcpy(cleanMsg, data + 8, msgLen);
+        cleanMsg[msgLen] = '\0';
+
+        if (_msgCallback) _msgCallback(data[1], "MeshCore", cleanMsg);
+
+    } else if (type == PKT_MSG_WAITING) {
+        Serial.println("[MeshCoreBus] <<< Message waiting - requesting next message...");
         requestNextMessage();
-    }
-    else {
-        Serial.println("[MeshCoreBus] <<< Unknown frame type received");
+
+    } else {
+        Serial.println("[MeshCoreBus] <<< Unknown or unhandled frame type");
     }
 }
 
@@ -151,29 +152,29 @@ void MeshCoreBus::handleRxByte(uint8_t b) {
     Serial.println(b, HEX);
 
     switch (_rxState) {
-        case WAIT_START: 
-            if (b == FRAME_RX) { 
-                _rxState = WAIT_LEN_LO; 
-                _rxIndex = 0; 
+        case WAIT_START:
+            if (b == FRAME_RX) {
+                _rxState = WAIT_LEN_LO;
+                _rxIndex = 0;
                 Serial.println("[MeshCoreBus] RX: Found FRAME_RX start");
-            } 
+            }
             break;
-        case WAIT_LEN_LO: 
-            _rxLen = b; 
-            _rxState = WAIT_LEN_HI; 
+        case WAIT_LEN_LO:
+            _rxLen = b;
+            _rxState = WAIT_LEN_HI;
             break;
-        case WAIT_LEN_HI: 
-            _rxLen |= (uint16_t)b << 8; 
-            _rxState = (_rxLen > 511) ? WAIT_START : WAIT_DATA; 
+        case WAIT_LEN_HI:
+            _rxLen |= (uint16_t)b << 8;
+            _rxState = (_rxLen > 511) ? WAIT_START : WAIT_DATA;
             Serial.print("[MeshCoreBus] RX: Frame length = ");
             Serial.println(_rxLen);
             break;
         case WAIT_DATA:
             _rxBuf[_rxIndex++] = b;
-            if (_rxIndex >= _rxLen) { 
+            if (_rxIndex >= _rxLen) {
                 Serial.println("[MeshCoreBus] RX: Full frame received, parsing...");
-                parseFrame(_rxBuf, _rxLen); 
-                _rxState = WAIT_START; 
+                parseFrame(_rxBuf, _rxLen);
+                _rxState = WAIT_START;
             }
             break;
     }

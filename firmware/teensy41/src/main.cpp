@@ -1,5 +1,5 @@
 // Doomsday Net Computer - Terminal Engine
-// Version 0.32 - Proper MeshCoreBus integration
+// Version 0.33 - DoomsdayMessageBus to RP2040 DVI + MeshCoreBus
 
 #include <Arduino.h>
 #include <SD.h>
@@ -7,6 +7,7 @@
 #include <ILI9341_t3.h>
 #include <USBHost_t36.h>
 #include "MeshCoreBus.h"
+#include "DoomsdayMessageBus.h"
 
 // ==================== HARDWARE ====================
 const int SD_CS_PIN   = BUILTIN_SDCARD;
@@ -27,6 +28,9 @@ USBSerial meshUSBSerial(myusb);
 // ==================== MESHCORE BUS ====================
 MeshCoreBus meshCoreBus(myusb, meshUSBSerial);
 
+// ==================== DOOMSDAY MESSAGE BUS (to RP2040 DVI) ====================
+DoomsdayMessageBus dmbToDisplay(Serial1);
+
 // ==================== TERMINAL STATE ====================
 const int MAX_LINES = 15;
 const int LINE_HEIGHT = 16;
@@ -45,34 +49,46 @@ int cmdIndex = 0;
 
 String currentPath = "/";
 
-// ==================== DEBUG UART (to Feather DVI) ====================
+// ==================== TIMERS ====================
 uint32_t lastSend = 0;
 
+// ==================== FORWARD DECLARATIONS ====================
 void addToTerminal(const char* text, uint16_t color = ILI9341_GREEN);
+void handleCommand(const char* cmd);
+void OnPress(int key);
+void scrollUp();
+void printPrompt();
+void checkMeshCore();
+void sendTestMessage();
 
+// ==================== MESHCORE LISTENER ====================
+void checkMeshCore() {
+    meshCoreBus.update();
+}
+
+// ==================== DOOMSDAY MESSAGE BUS SENDER (to RP2040 DVI) ====================
 void sendTestMessage() {
-    String msg = "[TEST] UART link - " + String(millis() / 1000) + "s";
-    Serial1.println(msg);
+    String msg = "[TEST] Doomsday UART link - " + String(millis() / 1000) + "s uptime";
+    
+    dmbToDisplay.publish("display", msg.c_str());
     Serial.println("[DMB TX] " + msg);
+    
     tft.setTextColor(ILI9341_YELLOW);
     tft.print(msg);
     tft.print("\n");
     tft.setTextColor(ILI9341_WHITE);
 }
 
-// ==================== MESHCORE MESSAGE CALLBACK ====================
+// ==================== MESHCORE CALLBACK ====================
 void onMeshCoreMessage(uint8_t chan, const char* from, const char* msg) {
     char buf[128];
     snprintf(buf, sizeof(buf), "[MeshCore ch%d] %s: %s", chan, from, msg);
-    addToTerminal(buf, ILI9341_CYAN);
+    
+    addToTerminal(buf, ILI9341_CYAN);           // Show on local TFT
+    dmbToDisplay.publish("display", buf);       // Forward to RP2040 DVI display
 }
 
 // ==================== TERMINAL FUNCTIONS ====================
-void handleCommand(const char* cmd);
-void OnPress(int key);
-void scrollUp();
-void printPrompt();
-
 void scrollUp() {
     for (int i = 0; i < MAX_LINES - 1; i++) {
         terminalLines[i] = terminalLines[i + 1];
@@ -151,6 +167,7 @@ void setup() {
     delay(300);
 
     Serial1.begin(921600);
+    dmbToDisplay.begin();
 
     tft.begin();
     tft.setRotation(1);
@@ -158,8 +175,8 @@ void setup() {
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(1);
 
-    addToTerminal("=== Doomsday Net Computer v0.32 ===", ILI9341_GREEN);
-    addToTerminal("MeshCoreBus + SD + UART Debug", ILI9341_YELLOW);
+    addToTerminal("=== Doomsday Net Computer v0.33 ===", ILI9341_GREEN);
+    addToTerminal("DoomsdayMessageBus + MeshCoreBus + SD", ILI9341_YELLOW);
 
     if (!SD.begin(SD_CS_PIN)) {
         addToTerminal("SD FAILED", ILI9341_RED);
@@ -174,14 +191,14 @@ void setup() {
     meshCoreBus.onMessage(onMeshCoreMessage);
     meshCoreBus.setDebugPrint(&Serial);
 
-    addToTerminal("MeshCoreBus ready", ILI9341_CYAN);
+    addToTerminal("MeshCoreBus + DMB ready", ILI9341_CYAN);
     printPrompt();
 }
 
 // ==================== LOOP ====================
 void loop() {
     myusb.Task();
-    meshCoreBus.update();
+    checkMeshCore();
 
     if (millis() - lastSend > 10000) {
         sendTestMessage();
@@ -218,6 +235,9 @@ void handleCommand(const char* cmd) {
         if (msg.length() > 0) {
             meshCoreBus.sendChannel(0, msg);
             addToTerminal(("[MeshCore TX] " + msg).c_str(), ILI9341_GREEN);
+            
+            // Also send to RP2040 DVI display via DMB
+            dmbToDisplay.publish("display", ("[MeshCore] " + msg).c_str());
         }
     }
     else if (c == "status") {
