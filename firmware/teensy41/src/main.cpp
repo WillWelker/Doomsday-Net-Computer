@@ -1,3 +1,5 @@
+// Firmware code for the Teensy 4.1  === VERSION 0.27 ===
+
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
@@ -52,7 +54,7 @@ void setup() {
     terminal.begin();
     dmb.begin();
     
-    // === VERSION 0.27 ===
+    
     terminal.addLine("=== Doomsday Net Computer v0.27 ===", 0x07E0);
     terminal.addLine("USB Hub + Shared USBHost + MeshCore", 0xFFFF);
     
